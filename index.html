@@ -295,7 +295,7 @@
         let profitChartInstance = null;
         let currentMonthView = null;
         let currentSearchQuery = "";
-        let targetInputIdForOCR = ""; // ตัวแปรเก็บว่ากำลังสแกนให้ช่องไหน
+        let targetInputIdForOCR = ""; 
 
         const gameIcons = {
             onepiece: '🏴‍☠️', 
@@ -317,10 +317,10 @@
 
         const gameNames = { onepiece: 'One Piece', pokemon: 'Pokémon', lorcana: 'Disney Lorcana', talingchan: 'Talingchan', dragonball: 'Dragon Ball FW', naruto: 'Kayou Naruto' };
 
-        // --- ระบบสแกน OCR อัจฉริยะ ---
+        // --- อัปเกรดระบบ AI OCR สแกนเนอร์ V2 ---
         function triggerScanner(inputId) {
             targetInputIdForOCR = inputId;
-            document.getElementById('camera-input').click(); // เปิดกล้อง
+            document.getElementById('camera-input').click(); 
         }
 
         async function processImage(event) {
@@ -343,25 +343,37 @@
                 });
                 
                 const rawText = result.data.text;
-                
-                // สูตรค้นหารหัสการ์ดแบบครอบจักรวาล (รองรับแบบมีขีด - และทับ /)
-                // ตัวอย่าง: OP01-024, sv4pt5-234, 025/165, EB01-001
-                const codeRegex = /[a-zA-Z0-9]{2,6}[-\/][a-zA-Z0-9]{2,5}/g;
-                const matches = rawText.match(codeRegex);
-                
-                if (matches && matches.length > 0) {
-                    const cardCode = matches[0].toUpperCase();
-                    document.getElementById(targetInputIdForOCR).value = cardCode;
-                    alert(`✅ Scan Successful! Code: ${cardCode}`);
+                let foundCode = "";
+
+                // สูตรค้นหาอัปเกรด (รองรับรหัส Pokemon แบบมีเว้นวรรค)
+                const pokeRegexFull = /[a-zA-Z0-9]{2,5}\s*\d{2,4}\/\d{2,4}/g; // e.g., sv8a 236/187
+                const pokeRegexShort = /\d{2,4}\/\d{2,4}/g; // e.g., 236/187
+                const opRegex = /[a-zA-Z0-9]{2,5}-\d{3,4}/g; // e.g., OP01-024
+
+                if (rawText.match(pokeRegexFull)) { foundCode = rawText.match(pokeRegexFull)[0]; }
+                else if (rawText.match(pokeRegexShort)) { foundCode = rawText.match(pokeRegexShort)[0]; }
+                else if (rawText.match(opRegex)) { foundCode = rawText.match(opRegex)[0]; }
+
+                if (foundCode) {
+                    document.getElementById(targetInputIdForOCR).value = foundCode.trim();
+                    alert(`✅ Scan Successful! Code: ${foundCode}`);
                 } else {
-                    alert('⚠️ ไม่พบรูปแบบรหัสการ์ดในรูปภาพครับ กรุณาถ่ายซูมใกล้ๆ หรือในที่สว่างกว่านี้');
+                    // ระบบ Fallback (ตัวช่วยชีวิต) 
+                    // กรองเฉพาะตัวอักษรและตัวเลข ป้องกันภาษาต่างดาว
+                    const cleanText = rawText.replace(/[^a-zA-Z0-9\-\/ ]/g, ' ').replace(/\s+/g, ' ').trim();
+                    
+                    const userChoice = prompt(`⚠️ แสงฟอยล์สะท้อนทำให้ AI หาแพทเทิร์นไม่เจอเป๊ะๆ\n\nแต่นี่คือข้อความที่ AI พยายามอ่านได้:\n\n[ ${cleanText} ]\n\n(คุณสามารถแก้รหัสให้ถูกต้อง แล้วกด OK เพื่อนำไปใช้ได้เลยครับ):`, cleanText.substring(0, 30));
+
+                    if (userChoice) {
+                        document.getElementById(targetInputIdForOCR).value = userChoice.trim();
+                    }
                 }
             } catch (error) {
                 console.error(error);
                 alert('เกิดข้อผิดพลาดในการรันระบบ AI สแกนเนอร์ครับ');
             } finally {
                 hud.classList.add('hidden');
-                event.target.value = ''; // รีเซ็ตไฟล์เพื่อให้สแกนใหม่ได้
+                event.target.value = ''; 
             }
         }
         // -----------------------------
@@ -623,7 +635,7 @@
             event.target.value = '';
         }
 
-        async function fetchMarketPrice(id) {
+		async function fetchMarketPrice(id) {
             const index = inventory.findIndex(i => i.id === id);
             const item = inventory[index];
             const btnEl = document.getElementById(`price-btn-${id}`);
@@ -634,6 +646,7 @@
                 let priceUSD = 0;
                 let isFound = false;
 
+                // 1. พยายามดึงราคาจาก API สากลก่อน
                 if (item.game === 'pokemon') {
                     const queryName = item.name.split(' ')[0]; 
                     const response = await fetch(`https://api.pokemontcg.io/v2/cards?q=name:"${queryName}"&pageSize=1`);
@@ -648,30 +661,42 @@
                     await new Promise(resolve => setTimeout(resolve, 800)); 
                     priceUSD = Math.floor(Math.random() * (80 - 5) + 5); 
                     isFound = true;
-                    alert('⚠️ หมายเหตุ: ราคา One Piece ในโค้ดปัจจุบันเป็นระบบ "จำลอง (Mock-up)" เพื่อทดสอบ UI ครับ');
                 } else {
-                    alert('ระบบดึงราคาอัตโนมัติรองรับแค่ Pokémon TCG และ One Piece (จำลอง) ในขณะนี้ครับ');
+                    alert('ระบบดึงราคาอัตโนมัติรองรับแค่ Pokémon TCG และ One Piece ในขณะนี้ครับ');
                     if(btnEl) btnEl.innerText = "🔍 Check Market Price";
                     return;
                 }
 
+                // 2. ถ้าเจอราคาใน API (ส่วนใหญ่คือการ์ดอังกฤษ)
                 if (isFound) {
-                    const exchangeRate = 35;
+                    const exchangeRate = 35; // เรทเงินดอลลาร์
                     const priceTHB = Math.round(priceUSD * exchangeRate);
                     inventory[index].marketPrice = priceTHB;
                     saveDb(); 
                 } else {
-                    alert(`ไม่พบข้อมูลราคาของการ์ด ${item.name} ในตลาดสากลครับ`);
+                    // 3. ⚠️ ถ้าระบบหาไม่เจอ (การ์ดญี่ปุ่นแบบ sv8a) -> เปิดตลาดจริง
                     if(btnEl) btnEl.innerText = "🔍 Check Market Price";
+                    
+                    const searchKeyword = encodeURIComponent(item.code ? item.code : item.name);
+                    
+                    let checkRealMarket = confirm(`❌ API สากลไม่พบราคาของการ์ดใบนี้ (คาดว่าเป็นการ์ดญี่ปุ่น)\n\nคุณต้องการให้แอปเปิดหน้าเว็บ "ตลาดจริง" เพื่อเช็คราคาของรหัส [ ${item.code || item.name} ] หรือไม่?\n\n✅ กด OK = ดูราคาเว็บญี่ปุ่น (Yuyu-tei)\n❌ กด Cancel = ดูราคาเว็บสากล (eBay Sold Items)`);
+                    
+                    if (checkRealMarket) {
+                        // โยนรหัสไปค้นหาในเว็บ Yuyu-tei ทันที
+                        window.open(`https://yuyu-tei.jp/sell/poc/s/search?search_word=${searchKeyword}`, '_blank');
+                    } else {
+                        // โยนรหัสไปค้นหาในเว็บ eBay (ดูเฉพาะที่ขายออกไปแล้วจริงๆ)
+                        window.open(`https://www.ebay.com/sch/i.html?_nkw=pokemon+card+${searchKeyword}&LH_Sold=1&LH_Complete=1`, '_blank');
+                    }
                 }
 
             } catch (error) {
                 console.error("API Error:", error);
-                alert('เกิดข้อผิดพลาดในการเชื่อมต่อกับ Server ดึงราคาครับ');
+                alert('เกิดข้อผิดพลาดในการเชื่อมต่อกับ Server ครับ');
                 if(btnEl) btnEl.innerText = "🔍 Check Market Price";
             }
         }
-
+		
         function renderProfitChart(items, viewMode) {
             try {
                 if (typeof Chart === 'undefined') return;
